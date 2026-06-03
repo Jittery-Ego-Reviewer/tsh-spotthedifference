@@ -51,6 +51,22 @@
             animation: shake 0.3s;
         }
 
+        /* Gentle continuous hint shake & pulse animation if user triggers hint */
+        @keyframes hintShakeAndPulse {
+            0%, 100% { transform: scale(1) rotate(0deg); }
+            20% { transform: scale(1.35) rotate(-10deg); }
+            40% { transform: scale(1.35) rotate(10deg); }
+            60% { transform: scale(1.35) rotate(-10deg); }
+            80% { transform: scale(1.35) rotate(10deg); }
+        }
+        .hint-active {
+            animation: hintShakeAndPulse 2.2s infinite ease-in-out;
+            z-index: 10;
+            position: relative;
+            background-color: rgba(254, 240, 138, 0.4); /* Slight yellow highlighting glow */
+            border-radius: 4px;
+        }
+
         @keyframes bounceIn {
             0% { transform: scale(0.8); opacity: 0; }
             60% { transform: scale(1.05); opacity: 1; }
@@ -90,9 +106,17 @@
         </div>
     </div>
     
-    <!-- Instructions -->
-    <div class="mt-6 text-center z-10 relative bg-white/80 px-5 py-3 rounded-2xl shadow-sm backdrop-blur border border-green-50">
-        <p class="text-gray-700 font-bold text-lg">🎯 找出唯一不同的圖案！</p>
+    <!-- Hint Button & Instructions Area -->
+    <div class="w-full max-w-lg flex flex-col items-center gap-3 mt-4 z-10 relative">
+        <!-- Manual Hint Button with lightbulb -->
+        <button onclick="triggerManualHint()" class="w-full sm:w-auto flex items-center justify-center gap-2 bg-gradient-to-b from-yellow-300 to-yellow-500 hover:from-yellow-400 hover:to-yellow-600 text-yellow-950 font-black px-8 py-3 rounded-2xl shadow-md border-2 border-yellow-200 transition-transform active:scale-95 text-lg">
+            <span>💡</span> 提示 (Hint)
+        </button>
+        
+        <!-- Instructions Card -->
+        <div class="w-full text-center bg-white/80 px-5 py-3 rounded-2xl shadow-sm backdrop-blur border border-green-50">
+            <p class="text-gray-700 font-bold text-lg">🎯 找出唯一不同的圖案！</p>
+        </div>
     </div>
 
     <!-- Start Screen Overlay -->
@@ -100,7 +124,7 @@
         <div class="bg-white p-8 rounded-3xl shadow-2xl text-center max-w-sm w-full animate-bounce-in border-4 border-green-200">
             <div class="text-6xl mb-4">🕵️‍♂️</div>
             <h2 class="text-3xl font-black text-green-600 mb-2">找不同遊戲</h2>
-            <p class="text-gray-600 mb-6 font-medium">找出每一關裡隱藏的唯一不同圖案！<br>隨時雙擊屏幕練習發音！</p>
+            <p class="text-gray-600 mb-6 font-medium">找出每一關裡隱藏的唯一不同圖案</p>
             <button onclick="startGame()" class="w-full bg-gradient-to-b from-green-400 to-green-600 hover:from-green-500 hover:to-green-700 text-white font-bold text-2xl py-4 rounded-2xl shadow-lg transition-transform active:scale-95">
                 開始遊戲
             </button>
@@ -110,12 +134,12 @@
     <!-- Drill Popup Overlay -->
     <div id="drill-popup" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-md items-center justify-center p-4">
         <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl flex flex-col items-center text-center animate-bounce-in border-4 border-blue-200">
-            <h2 class="text-2xl font-black text-blue-600 mb-4 bg-blue-50 px-6 py-2 rounded-full shadow-sm">🗣️練習時間</h2>
+            <h2 class="text-2xl font-black text-blue-600 mb-4 bg-blue-50 px-6 py-2 rounded-full shadow-sm">🗣️ 語音練習時間</h2>
             <div id="drill-word-list" class="grid grid-cols-2 gap-3 w-full mb-6">
                 <!-- Words dynamically injected here -->
             </div>
             <button onclick="closeDrillWindow()" class="w-full bg-gradient-to-b from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white font-bold text-xl py-3 rounded-xl shadow-lg transition-transform active:scale-95">
-                繼續
+                繼續 Continue
             </button>
         </div>
     </div>
@@ -139,7 +163,11 @@
         ['🔚', '🔙'], ['❤️‍🔥', '❤️'], ['✡️', '🔯'], ['☸️', '☮️'], ['🛄', '🛅'], 
         ['🕒', '🕘'], ['🕧', '🕕'], ['💣', '⚫'], ['▶️', '⏩'], ['❓', '⁉️'], 
         ['🩷', '💗'], ['😄', '😆'], ['😊', '☺️'], ['😞', '😔'], ['🙈', '🙊'], 
-        ['🐳', '🐋'], ['🧟‍♀️', '🧟‍♂️'], ['🤶', '🎅']
+        ['🐳', '🐋'], ['🧟‍♀️', '🧟‍♂️'], ['🤶', '🎅'], ['👨‍🦳', '🧑‍🦳'], ['👮‍♀️', '👮‍♂️'],
+        ['👩‍🍳', '👨‍🍳'], ['👩‍🎨', '👨‍🎨'], ['🤹‍♀️', '🤹‍♂️'], ['🚴‍♀️', '🚴‍♂️'], ['👂', '🦻'],
+        ['🖐️', '✋'], ['🎆', '🎇'], ['♥️', '❤️'], ['🔒', '🔓'], ['🔨', '⛏️'],
+        ['📃', '📄'], ['🗓️', '📆'], ['📁', '📂'], ['⌛', '⏳'], ['⛴️', '🛳️'],
+        ['🌍', '🌎'], ['🏠', '🏡'], ['🏨', '🏩'], ['☁️', '🌨️']
     ];
 
     const targetSounds = [
@@ -150,12 +178,27 @@
         { emoji: '🔨', name: '鐵鎚' }, { emoji: '🧲', name: '磁石' }, { emoji: '🔌', name: '插蘇' },
         { emoji: '🧋', name: '珍珠奶茶' }, { emoji: '🧅', name: '洋葱' }, { emoji: '🚵', name: '騎單車' },
         { emoji: '🪽', name: '翅膀' }, { emoji: '🚽', name: '廁所' }, { emoji: '🫖', name: '茶壺' },
-        { emoji: '🍴', name: '刀叉' }, { emoji: '🥄', name: '匙羹' }, { emoji: '🧑‍🍳', name: '廚師' },
-        { emoji: '🦔', name: '刺蝟' }, { emoji: '🐹', name: '倉鼠' }
+        { emoji: '🍴', name: '用刀叉切' }, { emoji: '🥄', name: '匙羹' }, { emoji: '🧑‍🍳', name: '廚師' },
+        { emoji: '🦔', name: '刺蝟' }, { emoji: '🐹', name: '倉鼠' },
+        // 新加入的目標詞彙
+        { emoji: '🧻', name: '廁紙' },
+        { emoji: '🦸', name: '超人' },
+        { emoji: '▶️', name: '開始' },
+        { emoji: '🦷', name: '牙齒' },
+        { emoji: '1 ', name: '一次' },
+        { emoji: '2 ', name: '兩次' },
+        { emoji: '🤿', name: '潛水' },
+        { emoji: '🏊‍♀️', name: '泳池' },
+        { emoji: '小明', name: '名稱' },
+        { emoji: '☀️', name: '晴天' },
+        { emoji: '💵', name: '錢幣' },
+        { emoji: '💰', name: '金錢' },
+        { emoji: '💵', name: '一千蚊' },
+        { emoji: '🌵', name: '有刺' }
     ];
 
     const otherSounds = [
-        { emoji: '🌵', name: '仙人掌' }, { emoji: '🧑‍⚕️', name: '醫生' }, { emoji: '🥑', name: '牛油果' },
+        { emoji: '🧑‍⚕️', name: '醫生' }, { emoji: '🥑', name: '牛油果' },
         { emoji: '🦛', name: '河馬' }, { emoji: '🐖', name: '豬' }, { emoji: '🐘', name: '大象' },
         { emoji: '🐊', name: '鱷魚' }, { emoji: '🐢', name: '烏龜' }, { emoji: '🐬', name: '海豚' },
         { emoji: '🦚', name: '孔雀' }, { emoji: '🦉', name: '貓頭鷹' }, { emoji: '🦋', name: '蝴蝶' },
@@ -167,6 +210,7 @@
     let currentRound = 1;
     const maxRounds = 5;
     let isAdvancingRound = false;
+    let hintTimer = null;
     
     // Web Audio API for synthesizing sounds without external files
     let audioCtx = null;
@@ -261,6 +305,11 @@
         const grid = document.getElementById('emoji-grid');
         grid.innerHTML = '';
         
+        // Clear any active hint timers when rendering a new grid
+        if (hintTimer) {
+            clearTimeout(hintTimer);
+        }
+        
         // Fixed to 14x14 (196 emojis, approx 200) for all rounds
         let size = 14; 
         let total = size * size;
@@ -288,6 +337,27 @@
             }
             grid.appendChild(el);
         }
+
+        // Start hint timer for 45 seconds (45,000 milliseconds)
+        hintTimer = setTimeout(() => {
+            const targetCell = document.querySelector('.emoji-cell[data-is-target="true"]');
+            if (targetCell) {
+                targetCell.classList.add('hint-active');
+            }
+        }, 45000);
+    }
+
+    function triggerManualHint() {
+        initAudio();
+        playSound('pop');
+        // Clear automatic hint timer so they don't overlap or double trigger
+        if (hintTimer) {
+            clearTimeout(hintTimer);
+        }
+        const targetCell = document.querySelector('.emoji-cell[data-is-target="true"]');
+        if (targetCell) {
+            targetCell.classList.add('hint-active');
+        }
     }
 
     function handleSingleTap(targetElement) {
@@ -295,6 +365,9 @@
         
         let isTarget = targetElement.dataset.isTarget === 'true';
         if (isTarget) {
+            if (hintTimer) {
+                clearTimeout(hintTimer);
+            }
             playSound('success');
             isAdvancingRound = true;
             showDrillWindow();
@@ -353,6 +426,9 @@
     }
 
     function showWinScreen() {
+        if (hintTimer) {
+            clearTimeout(hintTimer);
+        }
         const winScreen = document.getElementById('win-screen');
         winScreen.classList.remove('hidden');
         winScreen.classList.add('flex');
