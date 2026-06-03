@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>叉音找不同遊戲</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            touch-action: manipulation; /* Prevents native double-tap to zoom on iOS */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0fdf4; 
+        }
+        
+        #board-container {
+            container-type: inline-size;
+        }
+
+        .emoji-grid {
+            display: grid;
+            width: 100%;
+            height: 100%;
+            gap: 1px;
+        }
+
+        .emoji-cell {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+            transition: transform 0.1s ease;
+            /* Dynamically scales emoji size and prevents grid blowout */
+            font-size: calc((100cqi / var(--grid-size)) * 0.75);
+            line-height: 1;
+            min-width: 0;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .emoji-cell:active {
+            transform: scale(0.85);
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-4px) rotate(-5deg); }
+            75% { transform: translateX(4px) rotate(5deg); }
+        }
+        .shake {
+            animation: shake 0.3s;
+        }
+
+        @keyframes bounceIn {
+            0% { transform: scale(0.8); opacity: 0; }
+            60% { transform: scale(1.05); opacity: 1; }
+            100% { transform: scale(1); }
+        }
+        .animate-bounce-in {
+            animation: bounceIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        
+        @keyframes fall {
+            to { transform: translateY(110vh) rotate(360deg); }
+        }
+        .confetti {
+            position: absolute;
+            top: -20px;
+            width: 12px;
+            height: 12px;
+            background: red;
+            animation: fall 3s linear forwards;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4 relative">
+
+    <!-- Header -->
+    <div class="w-full max-w-lg flex justify-between items-center mb-4 px-5 py-3 bg-white rounded-2xl shadow-sm border-2 border-green-100 z-10 relative">
+        <h1 class="text-2xl font-black text-green-600 tracking-wide">找不同大挑戰</h1>
+        <div class="text-lg font-bold text-gray-700 bg-yellow-300 px-4 py-1 rounded-full shadow-inner">
+            第 <span id="round-text" class="text-xl">1</span> / 5 關
+        </div>
+    </div>
+    
+    <!-- Game Board -->
+    <div class="w-full max-w-lg aspect-square bg-white rounded-2xl shadow-lg p-2 relative z-10 border-4 border-white outline outline-4 outline-green-100" id="main-board-wrapper">
+        <div id="board-container" class="w-full h-full relative rounded-xl overflow-hidden">
+            <div id="emoji-grid" class="emoji-grid"></div>
+        </div>
+    </div>
+    
+    <!-- Instructions -->
+    <div class="mt-6 text-center z-10 relative bg-white/80 px-5 py-3 rounded-2xl shadow-sm backdrop-blur border border-green-50">
+        <p class="text-gray-700 font-bold text-lg">🎯 找出唯一不同的圖案！</p>
+    </div>
+
+    <!-- Start Screen Overlay -->
+    <div id="start-screen" class="fixed inset-0 z-50 bg-green-50/95 backdrop-blur-sm flex flex-col items-center justify-center p-6">
+        <div class="bg-white p-8 rounded-3xl shadow-2xl text-center max-w-sm w-full animate-bounce-in border-4 border-green-200">
+            <div class="text-6xl mb-4">🕵️‍♂️</div>
+            <h2 class="text-3xl font-black text-green-600 mb-2">找不同遊戲</h2>
+            <p class="text-gray-600 mb-6 font-medium">找出每一關裡隱藏的唯一不同圖案！<br>隨時雙擊屏幕練習發音！</p>
+            <button onclick="startGame()" class="w-full bg-gradient-to-b from-green-400 to-green-600 hover:from-green-500 hover:to-green-700 text-white font-bold text-2xl py-4 rounded-2xl shadow-lg transition-transform active:scale-95">
+                開始遊戲
+            </button>
+        </div>
+    </div>
+
+    <!-- Drill Popup Overlay -->
+    <div id="drill-popup" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-md items-center justify-center p-4">
+        <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl flex flex-col items-center text-center animate-bounce-in border-4 border-blue-200">
+            <h2 class="text-2xl font-black text-blue-600 mb-4 bg-blue-50 px-6 py-2 rounded-full shadow-sm">🗣️練習時間</h2>
+            <div id="drill-word-list" class="grid grid-cols-2 gap-3 w-full mb-6">
+                <!-- Words dynamically injected here -->
+            </div>
+            <button onclick="closeDrillWindow()" class="w-full bg-gradient-to-b from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white font-bold text-xl py-3 rounded-xl shadow-lg transition-transform active:scale-95">
+                繼續
+            </button>
+        </div>
+    </div>
+
+    <!-- Win Screen Overlay -->
+    <div id="win-screen" class="hidden fixed inset-0 z-50 bg-yellow-50/95 backdrop-blur-sm flex flex-col items-center justify-center p-6 overflow-hidden">
+        <div class="bg-white p-8 rounded-3xl shadow-2xl text-center max-w-sm w-full animate-bounce-in border-4 border-yellow-300 relative z-10">
+            <div class="text-7xl mb-4 animate-bounce">🏆</div>
+            <h2 class="text-4xl font-black text-yellow-500 mb-2">太棒了！</h2>
+            <p class="text-gray-600 mb-6 font-bold text-lg">你完成了所有挑戰！</p>
+            <button onclick="resetGame()" class="w-full bg-gradient-to-b from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-white font-bold text-2xl py-4 rounded-2xl shadow-lg transition-transform active:scale-95">
+                再玩一次
+            </button>
+        </div>
+    </div>
+
+<script>
+    // Constants from Prompt
+    const emojiPairs = [
+        ['🙃', '🙁'], ['😨', '😰'], ['⬆️', '⬇️'], ['⬆️', '↕️'], ['⤴️', '⤵️'], 
+        ['🔚', '🔙'], ['❤️‍🔥', '❤️'], ['✡️', '🔯'], ['☸️', '☮️'], ['🛄', '🛅'], 
+        ['🕒', '🕘'], ['🕧', '🕕'], ['💣', '⚫'], ['▶️', '⏩'], ['❓', '⁉️'], 
+        ['🩷', '💗'], ['😄', '😆'], ['😊', '☺️'], ['😞', '😔'], ['🙈', '🙊'], 
+        ['🐳', '🐋'], ['🧟‍♀️', '🧟‍♂️'], ['🤶', '🎅']
+    ];
+
+    const targetSounds = [
+        { emoji: '🦒', name: '長頸鹿' }, { emoji: '🪲', name: '甲蟲' }, { emoji: '👮', name: '警察' },
+        { emoji: '🏋️', name: '舉重' }, { emoji: '🛒', name: '購物車' }, { emoji: '📏', name: '間尺' },
+        { emoji: '🍵', name: '茶' }, { emoji: '🤡', name: '小丑' }, { emoji: '🐛', name: '毛毛蟲' },
+        { emoji: '🐞', name: '瓢蟲' }, { emoji: '🎢', name: '過山車' }, { emoji: '🕶️', name: '黑超' },
+        { emoji: '🔨', name: '鐵鎚' }, { emoji: '🧲', name: '磁石' }, { emoji: '🔌', name: '插蘇' },
+        { emoji: '🧋', name: '珍珠奶茶' }, { emoji: '🧅', name: '洋葱' }, { emoji: '🚵', name: '騎單車' },
+        { emoji: '🪽', name: '翅膀' }, { emoji: '🚽', name: '廁所' }, { emoji: '🫖', name: '茶壺' },
+        { emoji: '🍴', name: '刀叉' }, { emoji: '🥄', name: '匙羹' }, { emoji: '🧑‍🍳', name: '廚師' },
+        { emoji: '🦔', name: '刺蝟' }, { emoji: '🐹', name: '倉鼠' }
+    ];
+
+    const otherSounds = [
+        { emoji: '🌵', name: '仙人掌' }, { emoji: '🧑‍⚕️', name: '醫生' }, { emoji: '🥑', name: '牛油果' },
+        { emoji: '🦛', name: '河馬' }, { emoji: '🐖', name: '豬' }, { emoji: '🐘', name: '大象' },
+        { emoji: '🐊', name: '鱷魚' }, { emoji: '🐢', name: '烏龜' }, { emoji: '🐬', name: '海豚' },
+        { emoji: '🦚', name: '孔雀' }, { emoji: '🦉', name: '貓頭鷹' }, { emoji: '🦋', name: '蝴蝶' },
+        { emoji: '💃', name: '跳舞' }, { emoji: '🛝', name: '滑梯' }, { emoji: '💣', name: '炸彈' },
+        { emoji: '🗑️', name: '垃圾桶' }, { emoji: '🍓', name: '士多啤梨' }
+    ];
+
+    // State Variables
+    let currentRound = 1;
+    const maxRounds = 5;
+    let isAdvancingRound = false;
+    
+    // Web Audio API for synthesizing sounds without external files
+    let audioCtx = null;
+
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+    }
+
+    function playSound(type) {
+        if (!audioCtx) return;
+        const now = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        if (type === 'pop') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(400, now);
+            osc.frequency.exponentialRampToValueAtTime(800, now + 0.1);
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+            osc.start(now);
+            osc.stop(now + 0.1);
+        } else if (type === 'success') {
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(500, now);
+            osc.frequency.setValueAtTime(700, now + 0.1);
+            osc.frequency.setValueAtTime(1000, now + 0.2);
+            gain.gain.setValueAtTime(0.2, now);
+            gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+            osc.start(now);
+            osc.stop(now + 0.3);
+        } else if (type === 'wrong') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(150, now);
+            osc.frequency.exponentialRampToValueAtTime(80, now + 0.2);
+            gain.gain.setValueAtTime(0.15, now);
+            gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+            osc.start(now);
+            osc.stop(now + 0.2);
+        } else if (type === 'win') {
+            [400, 500, 600, 800, 1000].forEach((freq, i) => {
+                const o = audioCtx.createOscillator();
+                const g = audioCtx.createGain();
+                o.type = 'sine';
+                o.connect(g);
+                g.connect(audioCtx.destination);
+                o.frequency.value = freq;
+                g.gain.setValueAtTime(0.2, now + i*0.1);
+                g.gain.linearRampToValueAtTime(0.01, now + i*0.1 + 0.15);
+                o.start(now + i*0.1);
+                o.stop(now + i*0.1 + 0.15);
+            });
+        }
+    }
+
+    // Game Logic
+    function startGame() {
+        initAudio(); // Required to unlock audio on first interaction
+        document.getElementById('start-screen').classList.add('hidden');
+        resetGame();
+    }
+
+    function resetGame() {
+        currentRound = 1;
+        document.getElementById('win-screen').classList.add('hidden');
+        document.getElementById('win-screen').classList.remove('flex');
+        
+        // Remove existing confetti
+        document.querySelectorAll('.confetti').forEach(e => e.remove());
+        
+        updateUI();
+        renderGrid();
+    }
+
+    function updateUI() {
+        document.getElementById('round-text').innerText = currentRound;
+    }
+
+    function getRandomElements(arr, count) {
+        let shuffled = [...arr].sort(() => 0.5 - Math.random());
+        return shuffled.slice(0, count);
+    }
+
+    function renderGrid() {
+        const grid = document.getElementById('emoji-grid');
+        grid.innerHTML = '';
+        
+        // Fixed to 14x14 (196 emojis, approx 200) for all rounds
+        let size = 14; 
+        let total = size * size;
+        
+        grid.style.setProperty('--grid-size', size);
+        grid.style.gridTemplateColumns = `repeat(${size}, minmax(0, 1fr))`;
+        grid.style.gridTemplateRows = `repeat(${size}, minmax(0, 1fr))`;
+        
+        const selectedPair = emojiPairs[Math.floor(Math.random() * emojiPairs.length)];
+        
+        // Randomly decide which one is the base and which is the target
+        const isFirstBase = Math.random() > 0.5;
+        const baseEmoji = isFirstBase ? selectedPair[0] : selectedPair[1];
+        const targetEmoji = isFirstBase ? selectedPair[1] : selectedPair[0];
+        
+        let targetIndex = Math.floor(Math.random() * total);
+        
+        for(let i=0; i<total; i++) {
+            let isTarget = (i === targetIndex);
+            let el = document.createElement('div');
+            el.className = 'emoji-cell';
+            el.innerText = isTarget ? targetEmoji : baseEmoji;
+            if (isTarget) {
+                el.dataset.isTarget = 'true';
+            }
+            grid.appendChild(el);
+        }
+    }
+
+    function handleSingleTap(targetElement) {
+        if (!targetElement || !targetElement.classList.contains('emoji-cell')) return;
+        
+        let isTarget = targetElement.dataset.isTarget === 'true';
+        if (isTarget) {
+            playSound('success');
+            isAdvancingRound = true;
+            showDrillWindow();
+        } else {
+            playSound('wrong');
+            targetElement.classList.add('shake');
+            setTimeout(() => targetElement.classList.remove('shake'), 300);
+        }
+    }
+
+    function showDrillWindow() {
+        playSound('pop');
+        const popup = document.getElementById('drill-popup');
+        const wordList = document.getElementById('drill-word-list');
+        wordList.innerHTML = '';
+        
+        // Fulfill requirement: 3 target sounds and 1 other sound
+        let targets = getRandomElements(targetSounds, 3);
+        let others = getRandomElements(otherSounds, 1);
+        
+        // Randomize their order
+        let combined = [...targets, ...others].sort(() => 0.5 - Math.random());
+        
+        const cardColors = ['bg-red-50', 'bg-yellow-50', 'bg-green-50', 'bg-purple-50'];
+        
+        combined.forEach((item, index) => {
+            let div = document.createElement('div');
+            div.className = `flex flex-col items-center justify-center p-3 ${cardColors[index % cardColors.length]} rounded-2xl shadow border border-gray-100 transform transition-transform hover:scale-105`;
+            div.innerHTML = `
+                <div class="text-5xl mb-2 drop-shadow-sm">${item.emoji}</div>
+                <div class="text-lg font-bold text-gray-800 tracking-wide">${item.name}</div>
+            `;
+            wordList.appendChild(div);
+        });
+        
+        popup.classList.remove('hidden');
+        popup.classList.add('flex');
+    }
+
+    function closeDrillWindow() {
+        playSound('pop');
+        document.getElementById('drill-popup').classList.add('hidden');
+        document.getElementById('drill-popup').classList.remove('flex');
+        
+        if (isAdvancingRound) {
+            isAdvancingRound = false;
+            if (currentRound < maxRounds) {
+                currentRound++;
+                updateUI();
+                renderGrid();
+            } else {
+                playSound('win');
+                showWinScreen();
+            }
+        }
+    }
+
+    function showWinScreen() {
+        const winScreen = document.getElementById('win-screen');
+        winScreen.classList.remove('hidden');
+        winScreen.classList.add('flex');
+        
+        // Simple synthetic confetti effect
+        const colors = ['#fde047', '#ef4444', '#3b82f6', '#22c55e', '#a855f7'];
+        for(let i=0; i<60; i++) {
+            let conf = document.createElement('div');
+            conf.className = 'confetti rounded-sm';
+            conf.style.left = Math.random() * 100 + 'vw';
+            conf.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+            conf.style.animationDuration = (Math.random() * 2 + 1.5) + 's';
+            conf.style.animationDelay = (Math.random() * 0.5) + 's';
+            winScreen.appendChild(conf);
+        }
+    }
+
+    // Custom Double Tap Detection Logic
+    let tapCount = 0;
+    let tapTimeout;
+    const boardContainer = document.getElementById('board-container');
+
+    boardContainer.addEventListener('pointerdown', (e) => {
+        initAudio(); 
+        
+        // Ignore taps if a popup is open
+        if (!document.getElementById('drill-popup').classList.contains('hidden') || 
+            !document.getElementById('win-screen').classList.contains('hidden')) {
+            return;
+        }
+        
+        const cell = e.target.closest('.emoji-cell');
+        
+        tapCount++;
+        if (tapCount === 1) {
+            // Wait slightly to see if a second tap is coming
+            tapTimeout = setTimeout(() => {
+                tapCount = 0;
+                if (cell) handleSingleTap(cell); // It was a single tap, process game logic
+            }, 250); 
+        } else if (tapCount >= 2) {
+            // It's a double tap! Cancel the single tap action and open the drill
+            clearTimeout(tapTimeout);
+            tapCount = 0;
+            showDrillWindow();
+        }
+    });
+
+</script>
+</body>
+</html>
